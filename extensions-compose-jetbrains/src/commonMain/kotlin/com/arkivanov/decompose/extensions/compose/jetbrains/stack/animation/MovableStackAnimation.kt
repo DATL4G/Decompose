@@ -8,8 +8,12 @@ import com.arkivanov.decompose.Child
 
 internal class MovableStackAnimation<C : Any, T : Any>(
     disableInputDuringAnimation: Boolean,
+    backGestureConfig: PredictiveBackGestureConfig?,
     private val selector: (child: Child.Created<C, T>, otherChild: Child.Created<C, T>, direction: Direction) -> StackAnimator?,
-) : AbstractStackAnimation<C, T>(disableInputDuringAnimation = disableInputDuringAnimation) {
+) : AbstractStackAnimation<C, T>(
+    disableInputDuringAnimation = disableInputDuringAnimation,
+    backGestureConfig = backGestureConfig,
+) {
 
     @Composable
     override fun Child(

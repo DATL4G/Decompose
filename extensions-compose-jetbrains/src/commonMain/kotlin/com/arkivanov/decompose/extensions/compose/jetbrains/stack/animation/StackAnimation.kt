@@ -26,10 +26,12 @@ fun interface StackAnimation<C : Any, T : Any> {
  */
 fun <C : Any, T : Any> stackAnimation(
     disableInputDuringAnimation: Boolean = true,
+    backGestureConfig: PredictiveBackGestureConfig? = null,
     selector: (child: Child.Created<C, T>, otherChild: Child.Created<C, T>, direction: Direction) -> StackAnimator?,
 ): StackAnimation<C, T> =
     MovableStackAnimation(
         disableInputDuringAnimation = disableInputDuringAnimation,
+        backGestureConfig = backGestureConfig,
         selector = selector,
     )
 
@@ -41,10 +43,12 @@ fun <C : Any, T : Any> stackAnimation(
  */
 fun <C : Any, T : Any> stackAnimation(
     disableInputDuringAnimation: Boolean = true,
+    backGestureConfig: PredictiveBackGestureConfig? = null,
     selector: (child: Child.Created<C, T>) -> StackAnimator?,
 ): StackAnimation<C, T> =
     SimpleStackAnimation(
         disableInputDuringAnimation = disableInputDuringAnimation,
+        backGestureConfig = backGestureConfig,
         selector = selector,
     )
 
@@ -57,8 +61,10 @@ fun <C : Any, T : Any> stackAnimation(
 fun <C : Any, T : Any> stackAnimation(
     animator: StackAnimator = fade(),
     disableInputDuringAnimation: Boolean = true,
+    backGestureConfig: PredictiveBackGestureConfig? = null,
 ): StackAnimation<C, T> =
     SimpleStackAnimation(
         disableInputDuringAnimation = disableInputDuringAnimation,
+        backGestureConfig = backGestureConfig,
         selector = { animator },
     )

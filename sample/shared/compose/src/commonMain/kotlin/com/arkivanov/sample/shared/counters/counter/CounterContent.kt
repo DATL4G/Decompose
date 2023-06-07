@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -24,10 +25,12 @@ import com.arkivanov.decompose.value.Value
 import com.arkivanov.sample.shared.counters.counter.CounterComponent.Model
 import com.arkivanov.sample.shared.dialog.DialogComponent
 import com.arkivanov.sample.shared.dialog.DialogContent
+import kotlin.random.Random
 
 @Composable
 internal fun CounterContent(component: CounterComponent, modifier: Modifier = Modifier) {
     val model by component.model.subscribeAsState()
+    val k = rememberSaveable(Unit) { Random.nextInt() }
 
     Column(
         modifier = modifier,
@@ -36,7 +39,7 @@ internal fun CounterContent(component: CounterComponent, modifier: Modifier = Mo
         TopAppBar(
             title = {
                 Text(
-                    text = model.title,
+                    text = k.toString(),
                     modifier = Modifier.testTag("title"),
                 )
             },
