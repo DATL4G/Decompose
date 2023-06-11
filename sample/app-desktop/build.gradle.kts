@@ -24,6 +24,7 @@ kotlin {
             implementation(project(":extensions-compose-jetbrains"))
             implementation(project(":sample:shared:shared"))
             implementation(project(":sample:shared:compose"))
+            implementation("org.jetbrains.compose.ui:ui-graphics:${deps.versions.jetbrainsCompose.get()}")
             implementation(compose.desktop.currentOs)
             implementation(deps.jetbrains.kotlinx.kotlinxCoroutinesSwing)
             implementation(deps.reaktive.reaktive)

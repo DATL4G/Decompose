@@ -37,4 +37,7 @@ dependencies {
     implementation(deps.androidx.appcompat.appcompat)
     implementation(deps.androidx.activity.activityCompose)
     implementation(deps.android.material.material)
+    implementation("androidx.compose.runtime:runtime:${deps.versions.jetpackCompose.get()}")
+    implementation("androidx.compose.foundation:foundation:${deps.versions.jetpackCompose.get()}")
+    implementation("androidx.compose.material:material:${deps.versions.jetpackCompose.get()}")
 }
