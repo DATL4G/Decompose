@@ -1,6 +1,5 @@
 package com.arkivanov.sample.app
 
-import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.snap
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
@@ -31,13 +31,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -47,7 +50,6 @@ import androidx.compose.ui.unit.round
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 fun main() {
@@ -61,7 +63,7 @@ fun main() {
         ) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 MaterialTheme {
-                    Cards()
+                    DraggableCards()
                 }
             }
         }
@@ -69,7 +71,7 @@ fun main() {
 }
 
 @Composable
-fun Cards() {
+fun DraggableCards() {
     var cards by remember {
         mutableStateOf(
             listOf(
@@ -89,11 +91,12 @@ fun Cards() {
     ) {
         cards.forEachIndexed { index, card ->
             key(card) {
-                CardContent(
-                    color = card.color,
+                DraggableCard(
+                    layoutSize = size,
                     offsetY = ((cards.lastIndex - index) * -16).dp.toPx(),
-                    layoutWidth = size.width.toFloat(),
+                    scale = 1F - (cards.lastIndex - index).toFloat() / 20F,
                     onMoveToBack = { cards = listOf(card) + (cards - card) },
+                    content = { isFront -> CardContent(isFront = isFront, color = card.color) },
                 )
             }
         }
@@ -101,37 +104,49 @@ fun Cards() {
 }
 
 @Composable
-fun CardContent(color: Color, offsetY: Float, layoutWidth: Float, onMoveToBack: () -> Unit) {
-    var cardSize by remember { mutableStateOf(IntSize.Zero) }
+fun DraggableCard(
+    layoutSize: IntSize,
+    offsetY: Float,
+    scale: Float,
+    onMoveToBack: () -> Unit,
+    content: @Composable (isFront: Boolean) -> Unit,
+) {
+    var cardPosition: Offset by remember { mutableStateOf(Offset.Zero) }
+    var cardSize: IntSize by remember { mutableStateOf(IntSize.Zero) }
+    val minOffsetX: Float = -cardPosition.x - cardSize.width
+    val maxOffsetX: Float = layoutSize.width - cardPosition.x
+    val maxOffsetY: Float = -cardPosition.y
+
     var mode by remember { mutableStateOf(Mode.IDLE) }
-    var startOffset: Offset by remember { mutableStateOf(Offset.Zero) }
-    var dragOffset: Offset by remember { mutableStateOf(Offset.Zero) }
-    var dragChange: PointerInputChange? by remember { mutableStateOf(null) }
-    val upperOffsetY = -350.dp.toPx()
+    var startTouchPosition: Offset by remember { mutableStateOf(Offset.Zero) }
+    var dragTotalOffset: Offset by remember { mutableStateOf(Offset.Zero) }
+    var dragLastOffset: Offset by remember { mutableStateOf(Offset.Zero) }
+    val dragDistanceThreshold = 3.dp.toPx()
 
-    val targetOffset: Offset =
-        remember(mode, offsetY, dragOffset) {
-            when (mode) {
-                Mode.DRAG -> dragOffset + Offset(x = 0F, y = offsetY)
+    val animatedOffset by animateOffsetAsState(
+        targetValue = when (mode) {
+            Mode.DRAG -> dragTotalOffset + Offset(x = 0F, y = offsetY)
 
-                Mode.UP -> {
-                    val (x1, y1) = dragOffset
-                    val x2 = x1 + requireNotNull(dragChange).dx
-                    val y2 = y1 + requireNotNull(dragChange).dy
-                    val upperOffsetX = ((upperOffsetY - y1) * (x2 - x1) / (y2 - y1) + x1).coerceIn(-cardSize.width.toFloat(), layoutWidth)
-                    Offset(x = upperOffsetX, y = upperOffsetY)
-                }
-
-                Mode.IDLE,
-                Mode.DOWN -> Offset(x = 0F, y = offsetY)
+            Mode.UP -> {
+                val (x1, y1) = dragTotalOffset
+                val x2 = x1 + dragLastOffset.x
+                val y2 = y1 + dragLastOffset.y
+                val upperOffsetX = ((maxOffsetY - y1) * (x2 - x1) / (y2 - y1) + x1).coerceIn(minOffsetX, maxOffsetX)
+                Offset(x = upperOffsetX, y = maxOffsetY)
             }
-        }
 
-    val animationSpec: AnimationSpec<Offset> = remember(mode) { if (mode == Mode.DRAG) snap() else tween() }
-    val animatedOffset by animateOffsetAsState(targetValue = targetOffset, animationSpec = animationSpec)
+            Mode.IDLE,
+            Mode.DOWN -> Offset(x = 0F, y = offsetY)
+        },
+        animationSpec = if (mode == Mode.DRAG) snap() else tween()
+    )
+
+    val animatedScale by animateFloatAsState(targetValue = scale, animationSpec = tween())
+    var targetRotationY by remember { mutableStateOf(0F) }
+    val animatedRotationY by animateFloatAsState(targetValue = targetRotationY, animationSpec = tween())
 
     DisposableEffect(animatedOffset, mode, offsetY) {
-        if ((mode == Mode.UP) && (animatedOffset.y == upperOffsetY)) {
+        if ((mode == Mode.UP) && (animatedOffset.y == maxOffsetY)) {
             onMoveToBack()
             mode = Mode.DOWN
         } else if ((mode == Mode.DOWN) && (animatedOffset.y == offsetY)) {
@@ -141,36 +156,34 @@ fun CardContent(color: Color, offsetY: Float, layoutWidth: Float, onMoveToBack: 
         onDispose {}
     }
 
-    var targetRotationY by remember { mutableStateOf(0F) }
-    val animatedRotationY by animateFloatAsState(targetValue = targetRotationY, animationSpec = tween())
-
-    Column(
+    Box(
         modifier = Modifier
-            .onPlaced { cardSize = it.size }
+            .onPlaced {
+                cardPosition = it.positionInParent()
+                cardSize = it.size
+            }
+            .widthIn(max = 256.dp)
             .offset { animatedOffset.round() }
+            .aspectRatio(ratio = 1.5882353F)
             .pointerInput(Unit) {
-                var velocity = 0F
-
                 detectDragGestures(
-                    onDragStart = {
-                        velocity = 0F
-                        startOffset = it
-                        dragOffset = Offset.Zero
-                        dragChange = null
+                    onDragStart = { position ->
+                        startTouchPosition = position
+                        dragTotalOffset = Offset.Zero
                         mode = Mode.DRAG
                     },
-                    onDragEnd = { mode = if (velocity > 0.7) Mode.UP else Mode.DOWN },
+                    onDragEnd = { mode = if (dragLastOffset.getDistance() > dragDistanceThreshold) Mode.UP else Mode.DOWN },
                     onDrag = { change, dragAmount ->
                         change.consume()
-                        velocity = change.velocity
-                        dragOffset += dragAmount
-                        dragChange = change
+                        dragTotalOffset += dragAmount
+                        dragLastOffset = dragAmount
                     },
                 )
             }
             .pointerInput(Unit) {
                 detectTapGestures { targetRotationY += 180F }
             }
+            .scale(animatedScale)
             .graphicsLayer {
                 if (mode == Mode.IDLE) {
                     return@graphicsLayer
@@ -178,45 +191,38 @@ fun CardContent(color: Color, offsetY: Float, layoutWidth: Float, onMoveToBack: 
 
                 transformOrigin =
                     TransformOrigin(
-                        pivotFractionX = startOffset.x / size.width,
-                        pivotFractionY = startOffset.y / size.height,
+                        pivotFractionX = startTouchPosition.x / size.width,
+                        pivotFractionY = startTouchPosition.y / size.height,
                     )
 
-                val distanceFactor = (animatedOffset.y - offsetY) / (upperOffsetY - offsetY)
+                val verticalFactor = (animatedOffset.y - offsetY) / (maxOffsetY - offsetY)
                 val horizontalFactor = transformOrigin.pivotFractionX * 2F - 1F
-                rotationZ = distanceFactor * horizontalFactor * -30F
+                rotationZ = verticalFactor * horizontalFactor * -30F
             }
             .graphicsLayer { rotationY = animatedRotationY }
-            .clip(RoundedCornerShape(size = 16.dp))
-            .aspectRatio(ratio = 1.5882353F)
-            .background(color)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(space = 16.dp, alignment = Alignment.CenterVertically),
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(size = 16.dp), clip = true)
     ) {
         val deg = animatedRotationY.roundToInt() % 360
-        if ((deg <= 90) || (deg >= 270)) {
-            ImagePlaceholder()
-            RowPlaceholder()
-        } else {
-            repeat(3) {
-                RowPlaceholder()
-            }
-        }
+        content((deg <= 90) || (deg >= 270))
     }
 }
 
-private fun Modifier.offsetCard(startOffset: Offset, offsetY: Float, ): Modifier =
-    graphicsLayer {
-        transformOrigin =
-            TransformOrigin(
-                pivotFractionX = startOffset.x / size.width,
-                pivotFractionY = startOffset.y / size.height,
-            )
-
-        val distanceFactor = (animatedOffset.y - offsetY) / (upperOffsetY - offsetY)
-        val horizontalFactor = transformOrigin.pivotFractionX * 2F - 1F
-        rotationZ = distanceFactor * horizontalFactor * -30F
+@Composable
+fun CardContent(isFront: Boolean, color: Color) {
+    Column(
+        modifier = Modifier.fillMaxSize().background(color).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(space = 16.dp, alignment = Alignment.CenterVertically),
+    ) {
+        if (isFront) {
+            ImagePlaceholder()
+            RowPlaceholder()
+        } else {
+            RowPlaceholder()
+            RowPlaceholder()
+            RowPlaceholder()
+        }
     }
+}
 
 @Composable
 private fun RowPlaceholder() {
@@ -233,21 +239,9 @@ private data class Card(
 )
 
 enum class Mode {
-    IDLE,
-    DRAG,
-    UP,
-    DOWN
+    IDLE, DRAG, UP, DOWN
 }
 
 @Composable
 private fun Dp.toPx(): Float =
     with(LocalDensity.current) { toPx() }
-
-val PointerInputChange.velocity: Float
-    get() = abs(position.y - previousPosition.y) / (uptimeMillis - previousUptimeMillis).toFloat()
-
-val PointerInputChange.dx: Float
-    get() = position.x - previousPosition.x
-
-val PointerInputChange.dy: Float
-    get() = position.y - previousPosition.y
